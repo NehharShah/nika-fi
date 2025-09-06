@@ -9,6 +9,7 @@ on:
 env:
   NODE_VERSION: '18'
   DATABASE_URL: postgresql://postgres:postgres@localhost:5432/nika_referral_test
+  TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/nika_referral_test
   JWT_SECRET: test-jwt-secret-for-ci
   WEBHOOK_API_KEY: test-webhook-key-for-ci
 
@@ -128,6 +129,7 @@ jobs:
       env:
         NODE_ENV: test
         DATABASE_URL: ${{ env.DATABASE_URL }}
+        TEST_DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
         JWT_SECRET: test-jwt-secret
         WEBHOOK_API_KEY: test-webhook-key
 
@@ -188,6 +190,7 @@ jobs:
         context: .
         push: false
         tags: nika-referral:test
+        load: true
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
