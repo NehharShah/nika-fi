@@ -1,0 +1,361 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  NODE_VERSION: '18'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/nika_referral_test
+
+jobs:
+  # Linting and Code Quality
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Generate Prisma client
+      run: npx prisma generate
+
+    - name: Run TypeScript type check
+      run: npx tsc --noEmit
+
+    - name: Run ESLint
+      run: npx eslint . --ext .ts,.js --max-warnings 0 || true
+
+    - name: Check Prettier formatting
+      run: npx prettier --check "src/**/*.{ts,js,json}" || true
+
+  # Unit Tests
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Generate Prisma client
+      run: npx prisma generate
+
+    - name: Run unit tests
+      run: npm test -- --testPathPattern=unit --coverage
+      env:
+        NODE_ENV: test
+
+    - name: Upload unit test coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/unit/lcov.info
+        flags: unit-tests
+        name: unit-test-coverage
+
+  # Integration Tests
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nika_referral_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Generate Prisma client
+      run: npx prisma generate
+
+    - name: Setup test database
+      run: |
+        npx prisma db push --force-reset
+        npx prisma db seed
+      env:
+        DATABASE_URL: ${{ env.DATABASE_URL }}
+
+    - name: Run integration tests
+      run: npm test -- --testPathPattern=integration --coverage
+      env:
+        NODE_ENV: test
+        DATABASE_URL: ${{ env.DATABASE_URL }}
+        JWT_SECRET: test-jwt-secret
+        WEBHOOK_API_KEY: test-webhook-key
+
+    - name: Upload integration test coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/integration/lcov.info
+        flags: integration-tests
+        name: integration-test-coverage
+
+  # Security Scanning
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run npm audit
+      run: npm audit --audit-level=moderate
+
+    - name: Run Snyk security scan
+      uses: snyk/actions/node@master
+      continue-on-error: true
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        args: --severity-threshold=high
+
+  # Build and Test Docker Image
+  docker-build:
+    name: Docker Build & Test
+    runs-on: ubuntu-latest
+    needs: [lint, unit-tests]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        tags: nika-referral:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Test Docker image
+      run: |
+        docker run --rm -d --name nika-test \
+          -e DATABASE_URL="postgresql://test:test@localhost:5432/test" \
+          -e NODE_ENV=production \
+          -p 3000:3000 \
+          nika-referral:test
+        
+        # Wait for container to start
+        sleep 10
+        
+        # Test health endpoint
+        curl -f http://localhost:3000/health || exit 1
+        
+        # Stop container
+        docker stop nika-test
+
+  # Performance Tests
+  performance:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: [integration-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nika_referral_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Generate Prisma client
+      run: npx prisma generate
+
+    - name: Setup test database
+      run: |
+        npx prisma db push --force-reset
+        npx prisma db seed
+      env:
+        DATABASE_URL: ${{ env.DATABASE_URL }}
+
+    - name: Start application
+      run: |
+        npm run build
+        npm start &
+        sleep 10
+      env:
+        DATABASE_URL: ${{ env.DATABASE_URL }}
+        JWT_SECRET: test-jwt-secret
+        WEBHOOK_API_KEY: test-webhook-key
+
+    - name: Install Artillery
+      run: npm install -g artillery
+
+    - name: Run performance tests
+      run: |
+        artillery quick --count 50 --num 10 http://localhost:3000/health
+        artillery quick --count 20 --num 5 http://localhost:3000/api/docs
+
+  # Deploy to Staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [lint, unit-tests, integration-tests, docker-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    environment: staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build and push Docker image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: nika-referral-staging
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+    - name: Deploy to ECS Staging
+      run: |
+        aws ecs update-service \
+          --cluster nika-staging \
+          --service nika-referral-staging \
+          --force-new-deployment
+
+  # Deploy to Production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [lint, unit-tests, integration-tests, docker-build, security]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build and push Docker image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: nika-referral-production
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+    - name: Deploy to ECS Production
+      run: |
+        aws ecs update-service \
+          --cluster nika-production \
+          --service nika-referral-production \
+          --force-new-deployment
+
+    - name: Run post-deployment health check
+      run: |
+        sleep 60  # Wait for deployment
+        curl -f ${{ secrets.PRODUCTION_URL }}/health || exit 1
+
+    - name: Notify deployment success
+      if: success()
+      run: |
+        echo "🚀 Production deployment successful!"
+        # Add Slack/Discord notification here
+
+    - name: Rollback on failure
+      if: failure()
+      run: |
+        echo "❌ Deployment failed, initiating rollback..."
+        # Add rollback logic here

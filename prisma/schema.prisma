@@ -1,0 +1,222 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  username          String?  @unique
+  passwordHash      String
+  
+  // Referral System Fields
+  referralCode      String   @unique @default(cuid())
+  referrerId        String?  // Points to the user who referred this user
+  
+  // Fee Tier Configuration
+  feeTier           String   @default("BASE") // BASE, TIER1, TIER2, TIER3, etc.
+  customFeeRate     Decimal? @db.Decimal(10, 8) // Custom fee rate for special users
+  feeDiscountRate   Decimal  @default(0.0) @db.Decimal(10, 8) // Applied during signup
+  
+  // Commission Configuration (for custom structures like KOLs)
+  customCommissionStructure Json? // JSON object for custom commission rates
+  isTeamMember      Boolean  @default(false) // Team members don't pay fees
+  isWaivedFees      Boolean  @default(false) // Special users with waived fees
+  
+  // Performance Metrics
+  totalXpEarned     Decimal  @default(0) @db.Decimal(20, 8)
+  totalTradeVolume  Decimal  @default(0) @db.Decimal(20, 8)
+  totalFeesPaid     Decimal  @default(0) @db.Decimal(20, 8)
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  lastActiveAt      DateTime @default(now())
+  
+  // Relationships
+  referrer          User?    @relation("ReferralRelationship", fields: [referrerId], references: [id])
+  referrals         User[]   @relation("ReferralRelationship")
+  
+  // Commission tracking
+  commissionsEarned Commission[] @relation("CommissionEarner")
+  commissionsFromTrades Commission[] @relation("CommissionSource")
+  
+  // Claims
+  claims            Claim[]
+  
+  // Trades
+  trades            Trade[]
+  
+  @@map("users")
+}
+
+model Commission {
+  id                String   @id @default(uuid())
+  
+  // Core Commission Data
+  amount            Decimal  @db.Decimal(20, 8)
+  tokenType         String   @default("USDC") // USDC, SOL, etc.
+  commissionLevel   Int      // 1, 2, or 3
+  rate              Decimal  @db.Decimal(10, 8) // The rate applied (0.30, 0.03, 0.02)
+  
+  // Source Information
+  earnerId          String   // User who earned this commission
+  sourceUserId      String   // User whose trade generated this commission
+  tradeId           String   // The trade that generated this commission
+  originalFeeAmount Decimal  @db.Decimal(20, 8) // Original fee before commission split
+  
+  // Status
+  status            CommissionStatus @default(UNCLAIMED)
+  claimedAt         DateTime?
+  claimId           String?
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relationships
+  earner            User     @relation("CommissionEarner", fields: [earnerId], references: [id])
+  sourceUser        User     @relation("CommissionSource", fields: [sourceUserId], references: [id])
+  trade             Trade    @relation(fields: [tradeId], references: [id])
+  claim             Claim?   @relation(fields: [claimId], references: [id])
+  
+  @@map("commissions")
+}
+
+model Trade {
+  id                String   @id @default(uuid())
+  
+  // Trade Information
+  userId            String
+  tradeType         String   @default("SPOT") // SPOT, FUTURES, etc.
+  baseAsset         String   // BTC, ETH, etc.
+  quoteAsset        String   // USDC, USDT, etc.
+  side              String   // BUY, SELL
+  volume            Decimal  @db.Decimal(20, 8)
+  price             Decimal  @db.Decimal(20, 8)
+  
+  // Fee Calculation
+  feeRate           Decimal  @db.Decimal(10, 8) // Applied fee rate
+  feeAmount         Decimal  @db.Decimal(20, 8) // Total fee charged
+  netFeeAmount      Decimal  @db.Decimal(20, 8) // Fee after rebates/discounts
+  rebateAmount      Decimal  @default(0) @db.Decimal(20, 8) // Rebate given back to user
+  
+  // Chain Information
+  chain             String   // EVM, SVM
+  network           String   // Arbitrum, Solana
+  transactionHash   String?
+  
+  // Status
+  status            TradeStatus @default(PENDING)
+  settledAt         DateTime?
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relationships
+  user              User     @relation(fields: [userId], references: [id])
+  commissions       Commission[]
+  
+  @@map("trades")
+}
+
+model Claim {
+  id                String   @id @default(uuid())
+  
+  // Claim Information
+  userId            String
+  totalAmount       Decimal  @db.Decimal(20, 8)
+  tokenType         String   @default("USDC")
+  
+  // Transaction Information
+  transactionHash   String?
+  chain             String?   // EVM, SVM
+  network           String?   // Arbitrum, Solana
+  walletAddress     String?
+  
+  // Status
+  status            ClaimStatus @default(PENDING)
+  processedAt       DateTime?
+  failedReason      String?
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relationships
+  user              User     @relation(fields: [userId], references: [id])
+  commissions       Commission[]
+  
+  @@map("claims")
+}
+
+model FeeTier {
+  id                String   @id @default(uuid())
+  
+  // Tier Information
+  name              String   @unique // BASE, TIER1, TIER2, TIER3, VIP
+  minimumVolume     Decimal  @db.Decimal(20, 8) // Minimum 30-day volume
+  feeRate           Decimal  @db.Decimal(10, 8) // Fee rate for this tier
+  description       String?
+  
+  // Configuration
+  isActive          Boolean  @default(true)
+  priority          Int      @default(0) // Higher priority = better tier
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@map("fee_tiers")
+}
+
+model ReferralNetwork {
+  id                String   @id @default(uuid())
+  
+  // Network Structure
+  userId            String   @unique
+  level1Count       Int      @default(0) // Direct referrals
+  level2Count       Int      @default(0) // Referrals of referrals
+  level3Count       Int      @default(0) // Third level
+  totalNetworkSize  Int      @default(0)
+  
+  // Network Performance
+  totalNetworkVolume Decimal @default(0) @db.Decimal(20, 8)
+  totalCommissionsEarned Decimal @default(0) @db.Decimal(20, 8)
+  
+  // Cache timestamps for performance
+  lastCalculatedAt  DateTime @default(now())
+  
+  @@map("referral_networks")
+}
+
+// Enums
+enum CommissionStatus {
+  UNCLAIMED
+  CLAIMED
+  PROCESSING
+  FAILED
+}
+
+enum TradeStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum ClaimStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}

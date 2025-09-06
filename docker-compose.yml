@@ -1,0 +1,124 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: nika-postgres
+    environment:
+      POSTGRES_DB: nika_referral
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - nika-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache (for future scaling)
+  redis:
+    image: redis:7-alpine
+    container_name: nika-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - nika-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Nika Referral API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nika-api
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/nika_referral?schema=public
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      JWT_EXPIRES_IN: 7d
+      API_VERSION: v1
+      LOG_LEVEL: info
+      MAX_REFERRAL_DEPTH: 3
+      DEFAULT_DIRECT_COMMISSION_RATE: 0.30
+      DEFAULT_LEVEL2_COMMISSION_RATE: 0.03
+      DEFAULT_LEVEL3_COMMISSION_RATE: 0.02
+      DEFAULT_FEE_DISCOUNT_RATE: 0.10
+      BASE_FEE_TIER_RATE: 0.01
+      WEBHOOK_API_KEY: nika-webhook-secret-key
+      # Prisma configuration
+      PRISMA_QUERY_ENGINE_ENABLE_TRACING: false
+      PRISMA_DEBUG: false
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - nika-network
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Database Migration Runner (runs once)
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nika-migrate
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/nika_referral?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - nika-network
+    command: ["sh", "-c", "pnpm exec prisma db push"]
+    restart: "no"
+
+  # Nginx Reverse Proxy (for production)
+  nginx:
+    image: nginx:alpine
+    container_name: nika-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - api
+    networks:
+      - nika-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  nika-network:
+    driver: bridge
