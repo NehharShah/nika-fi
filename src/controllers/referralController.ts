@@ -473,7 +473,9 @@ function getStatusCodeForError(errorCode: string): number {
     'TRADE_NOT_FOUND': 404,
 
     // 409 Conflict
+    'EMAIL_EXISTS': 409,
     'EMAIL_ALREADY_EXISTS': 409,
+    'USERNAME_EXISTS': 409,
     'USERNAME_ALREADY_EXISTS': 409,
     'REFERRAL_CODE_EXISTS': 409,
     'TRADE_ALREADY_PROCESSED': 409,

@@ -1,6 +1,6 @@
 import { Decimal } from 'decimal.js';
 import { CommissionCalculator } from '../../src/utils/commissionCalculator';
-import { User, FeeTier, Trade, CustomCommissionStructure } from '../../src/types';
+import { User, FeeTier, Trade, CustomCommissionStructure, TradeStatus } from '../../src/types';
 
 /**
  * Unit Tests for Commission Calculator
@@ -203,7 +203,7 @@ describe('CommissionCalculator', () => {
       rebateAmount: new Decimal(50),
       chain: 'EVM',
       network: 'Arbitrum',
-      status: 'COMPLETED',
+      status: TradeStatus.COMPLETED,
       settledAt: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -240,7 +240,7 @@ describe('CommissionCalculator', () => {
       expect(result[0].level).toBe(1);
       expect(result[0].earnerId).toBe('level1');
       expect(result[0].amount.toString()).toBe('135');
-      expect(result[0].rate.toString()).toBe('0.30');
+      expect(result[0].rate.toString()).toBe('0.3');
 
       // Level 2: 3% of 450 = 13.5 USDC
       expect(result[1].level).toBe(2);
@@ -284,7 +284,7 @@ describe('CommissionCalculator', () => {
 
       // KOL gets 50% instead of 30%
       expect(result[0].amount.toString()).toBe('225'); // 450 * 0.50
-      expect(result[0].rate.toString()).toBe('0.50');
+      expect(result[0].rate.toString()).toBe('0.5');
 
       // Level 2 gets 3% (standard rate since no custom structure)
       expect(result[1].amount.toString()).toBe('13.5'); // 450 * 0.03
