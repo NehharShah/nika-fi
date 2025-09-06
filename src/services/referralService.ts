@@ -145,6 +145,12 @@ export class ReferralService {
         throw ErrorUtils.createApiError('REFERRAL_CODE_NOT_FOUND', errorMessages.REFERRAL_CODE_NOT_FOUND);
       }
 
+      // Prevent self-referral by email if account already exists
+      const existing = await this.db.findUserByEmail(email);
+      if (existing && existing.id === referrer.id) {
+        throw ErrorUtils.createApiError('SELF_REFERRAL_NOT_ALLOWED', errorMessages.SELF_REFERRAL_NOT_ALLOWED);
+      }
+
       // Validate referral chain depth
       const referralChain = await this.db.getReferralChain(referrer.id);
       if (referralChain.length >= businessRules.maxReferralDepth) {
@@ -381,24 +387,26 @@ export class ReferralService {
         this.feeTiers
       );
 
-      // Create trade record
-      const trade = await this.db.createTrade({
-        userId,
-        tradeType,
-        baseAsset,
-        quoteAsset,
-        side,
-        volume: tradeVolume,
-        price: tradePrice,
-        feeRate: feeCalculation.appliedFeeRate,
-        feeAmount: feeCalculation.feeAmount,
-        netFeeAmount: feeCalculation.netFeeAmount,
-        rebateAmount: feeCalculation.rebateAmount,
-        chain,
-        network,
-        transactionHash,
-        status: TradeStatus.COMPLETED,
-        settledAt: new Date(),
+      // Create trade record (tx-aware)
+      const trade = await (tx as any).trade.create({
+        data: {
+          userId,
+          tradeType,
+          baseAsset,
+          quoteAsset,
+          side,
+          volume: tradeVolume,
+          price: tradePrice,
+          feeRate: feeCalculation.appliedFeeRate,
+          feeAmount: feeCalculation.feeAmount,
+          netFeeAmount: feeCalculation.netFeeAmount,
+          rebateAmount: feeCalculation.rebateAmount,
+          chain,
+          network,
+          transactionHash,
+          status: TradeStatus.COMPLETED,
+          settledAt: new Date(),
+        },
       });
 
       // Get referral chain
@@ -427,7 +435,11 @@ export class ReferralService {
 
       let createdCommissions: Commission[] = [];
       if (commissionsData.length > 0) {
-        createdCommissions = await this.db.createCommissions(commissionsData);
+        // Create commission records in same transaction
+        const created = await Promise.all(
+          commissionsData.map((data) => (tx as any).commission.create({ data }))
+        );
+        createdCommissions = created as any;
         
         // Update commission IDs in distributions
         commissionDistributions.forEach((distribution, index) => {
@@ -439,10 +451,13 @@ export class ReferralService {
       const updatedVolume = user.totalTradeVolume.add(tradeValue);
       const updatedFees = user.totalFeesPaid.add(feeCalculation.netFeeAmount);
       
-      await this.db.updateUser(userId, {
-        totalTradeVolume: updatedVolume,
-        totalFeesPaid: updatedFees,
-        lastActiveAt: new Date(),
+      await (tx as any).user.update({
+        where: { id: userId },
+        data: {
+          totalTradeVolume: updatedVolume,
+          totalFeesPaid: updatedFees,
+          lastActiveAt: new Date(),
+        },
       });
 
       return {
