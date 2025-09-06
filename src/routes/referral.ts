@@ -22,7 +22,7 @@ import {
 
 /**
  * Referral Routes
- * 
+ *
  * Defines all HTTP routes for the referral system with appropriate middleware
  */
 
@@ -37,11 +37,7 @@ referralController.initialize().catch(console.error);
  */
 
 // Validate referral code format and existence
-router.get(
-  '/validate-code/:code',
-  validateReferralCode,
-  referralController.validateReferralCode
-);
+router.get('/validate-code/:code', validateReferralCode, referralController.validateReferralCode);
 
 // Register new user with referral code
 router.post(
@@ -146,7 +142,7 @@ router.post(
 function extractUserId(req: any, res: any, next: any): void {
   // Try to get userId from params, body, or query
   let userId = req.params.userId || req.body.userId || req.query.userId;
-  
+
   // If no userId provided and user is authenticated, use their ID
   if (!userId && req.user) {
     userId = req.user.id;

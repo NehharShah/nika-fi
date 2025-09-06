@@ -1,11 +1,11 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { Decimal } from 'decimal.js';
-import { 
-  User, 
-  Commission, 
-  Trade, 
-  Claim, 
-  FeeTier, 
+import {
+  User,
+  Commission,
+  Trade,
+  Claim,
+  FeeTier,
   ReferralNetwork,
   CommissionStatus,
   TradeStatus,
@@ -13,14 +13,14 @@ import {
   CreateUserData,
   UpdateUserData,
   PaginationParams,
-  FilterParams
+  FilterParams,
 } from '../types';
 import { businessRules, errorMessages } from '../config';
 import { ErrorUtils } from '../utils/helpers';
 
 /**
  * Database Service - Handles all database operations using Prisma
- * 
+ *
  * This service provides a clean abstraction layer over Prisma with:
  * - Type-safe database operations
  * - Error handling and validation
@@ -52,10 +52,15 @@ export class DatabaseService {
       console.log('Database connection established');
     } catch (error) {
       console.error('Failed to connect to database:', error);
-      console.warn('Database initialization failed, continuing without database connection for testing...');
+      console.warn(
+        'Database initialization failed, continuing without database connection for testing...'
+      );
       // Don't throw error in production environment for now to test API functionality
       if (process.env.NODE_ENV !== 'production') {
-        throw ErrorUtils.createApiError('DATABASE_CONNECTION_ERROR', 'Failed to connect to database');
+        throw ErrorUtils.createApiError(
+          'DATABASE_CONNECTION_ERROR',
+          'Failed to connect to database'
+        );
       }
     }
   }
@@ -81,7 +86,7 @@ export class DatabaseService {
         const referrer = await this.prisma.user.findUnique({
           where: { id: userData.referrerId },
         });
-        
+
         if (!referrer) {
           throw ErrorUtils.createApiError('USER_NOT_FOUND', errorMessages.USER_NOT_FOUND);
         }
@@ -163,9 +168,9 @@ export class DatabaseService {
 
       const user = await this.prisma.user.findUnique({
         where: { id: currentUserId },
-        select: { 
-          id: true, 
-          email: true, 
+        select: {
+          id: true,
+          email: true,
           username: true,
           referrerId: true,
           customCommissionStructure: true,
@@ -190,7 +195,7 @@ export class DatabaseService {
    * Get user's direct referrals with pagination
    */
   async getUserReferrals(
-    userId: string, 
+    userId: string,
     pagination: PaginationParams
   ): Promise<{ referrals: User[]; total: number }> {
     const [referrals, total] = await this.prisma.$transaction([
@@ -218,11 +223,11 @@ export class DatabaseService {
   /**
    * Create commission records
    */
-  async createCommissions(commissionsData: Omit<Commission, 'id' | 'createdAt' | 'updatedAt'>[]): Promise<Commission[]> {
+  async createCommissions(
+    commissionsData: Omit<Commission, 'id' | 'createdAt' | 'updatedAt'>[]
+  ): Promise<Commission[]> {
     const commissions = await this.prisma.$transaction(
-      commissionsData.map(data => 
-        this.prisma.commission.create({ data })
-      )
+      commissionsData.map((data) => this.prisma.commission.create({ data }))
     );
 
     return commissions as Commission[];
@@ -311,14 +316,14 @@ export class DatabaseService {
       if (!stats.earningsByLevel[commission.commissionLevel]) {
         stats.earningsByLevel[commission.commissionLevel] = new Decimal(0);
       }
-      stats.earningsByLevel[commission.commissionLevel] = 
+      stats.earningsByLevel[commission.commissionLevel] =
         stats.earningsByLevel[commission.commissionLevel].add(amount);
 
       // By token
       if (!stats.earningsByToken[commission.tokenType]) {
         stats.earningsByToken[commission.tokenType] = new Decimal(0);
       }
-      stats.earningsByToken[commission.tokenType] = 
+      stats.earningsByToken[commission.tokenType] =
         stats.earningsByToken[commission.tokenType].add(amount);
     });
 
@@ -416,8 +421,8 @@ export class DatabaseService {
    * Update claim status
    */
   async updateClaimStatus(
-    claimId: string, 
-    status: ClaimStatus, 
+    claimId: string,
+    status: ClaimStatus,
     transactionHash?: string,
     failedReason?: string
   ): Promise<Claim> {
@@ -455,9 +460,11 @@ export class DatabaseService {
   /**
    * Create or update fee tiers
    */
-  async upsertFeeTiers(tiersData: Omit<FeeTier, 'id' | 'createdAt' | 'updatedAt'>[]): Promise<FeeTier[]> {
+  async upsertFeeTiers(
+    tiersData: Omit<FeeTier, 'id' | 'createdAt' | 'updatedAt'>[]
+  ): Promise<FeeTier[]> {
     const tiers = await this.prisma.$transaction(
-      tiersData.map(data =>
+      tiersData.map((data) =>
         this.prisma.feeTier.upsert({
           where: { name: data.name },
           update: data,
@@ -496,7 +503,17 @@ export class DatabaseService {
    */
   async updateReferralNetworkStats(
     userId: string,
-    stats: Partial<Pick<ReferralNetwork, 'level1Count' | 'level2Count' | 'level3Count' | 'totalNetworkSize' | 'totalNetworkVolume' | 'totalCommissionsEarned'>>
+    stats: Partial<
+      Pick<
+        ReferralNetwork,
+        | 'level1Count'
+        | 'level2Count'
+        | 'level3Count'
+        | 'totalNetworkSize'
+        | 'totalNetworkVolume'
+        | 'totalCommissionsEarned'
+      >
+    >
   ): Promise<ReferralNetwork> {
     const network = await this.prisma.referralNetwork.upsert({
       where: { userId },
@@ -521,9 +538,7 @@ export class DatabaseService {
   /**
    * Execute operations in a transaction
    */
-  async executeTransaction<T>(
-    operations: (tx: any) => Promise<T>
-  ): Promise<T> {
+  async executeTransaction<T>(operations: (tx: any) => Promise<T>): Promise<T> {
     return this.prisma.$transaction(operations);
   }
 
@@ -541,27 +556,22 @@ export class DatabaseService {
     totalCommissions: Decimal;
     activeReferrers: number;
   }> {
-    const [
-      totalUsers,
-      totalTrades,
-      volumeResult,
-      commissionsResult,
-      activeReferrers,
-    ] = await this.prisma.$transaction([
-      this.prisma.user.count(),
-      this.prisma.trade.count(),
-      this.prisma.trade.aggregate({
-        _sum: { volume: true },
-      }),
-      this.prisma.commission.aggregate({
-        _sum: { amount: true },
-      }),
-      this.prisma.user.count({
-        where: {
-          referrals: { some: {} },
-        },
-      }),
-    ]);
+    const [totalUsers, totalTrades, volumeResult, commissionsResult, activeReferrers] =
+      await this.prisma.$transaction([
+        this.prisma.user.count(),
+        this.prisma.trade.count(),
+        this.prisma.trade.aggregate({
+          _sum: { volume: true },
+        }),
+        this.prisma.commission.aggregate({
+          _sum: { amount: true },
+        }),
+        this.prisma.user.count({
+          where: {
+            referrals: { some: {} },
+          },
+        }),
+      ]);
 
     return {
       totalUsers,
@@ -575,20 +585,24 @@ export class DatabaseService {
   /**
    * Get top referrers by commission earnings
    */
-  async getTopReferrers(limit: number = 10): Promise<Array<{
-    userId: string;
-    email: string;
-    username?: string;
-    totalEarnings: Decimal;
-    referralCount: number;
-  }>> {
-    const result = await this.prisma.$queryRaw<Array<{
-      user_id: string;
+  async getTopReferrers(limit: number = 10): Promise<
+    Array<{
+      userId: string;
       email: string;
-      username: string | null;
-      total_earnings: string;
-      referral_count: string;
-    }>>`
+      username?: string;
+      totalEarnings: Decimal;
+      referralCount: number;
+    }>
+  > {
+    const result = await this.prisma.$queryRaw<
+      Array<{
+        user_id: string;
+        email: string;
+        username: string | null;
+        total_earnings: string;
+        referral_count: string;
+      }>
+    >`
       SELECT 
         u.id as user_id,
         u.email,

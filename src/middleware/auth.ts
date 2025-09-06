@@ -6,7 +6,7 @@ import { ErrorUtils } from '../utils/helpers';
 
 /**
  * Authentication Middleware
- * 
+ *
  * Handles JWT token validation and user authentication
  */
 
@@ -47,7 +47,7 @@ export const authenticateToken = async (
 
     try {
       const decoded = jwt.verify(token, config.jwt.secret) as any;
-      
+
       // Add user info to request
       req.user = {
         id: decoded.userId,
@@ -91,14 +91,10 @@ export const authenticateToken = async (
 /**
  * Middleware to validate that the authenticated user matches the userId in the request
  */
-export const validateUserAccess = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
+export const validateUserAccess = (req: Request, res: Response, next: NextFunction): void => {
   try {
     const requestUserId = req.params.userId || req.body.userId || req.query.userId;
-    
+
     if (!req.user) {
       res.status(401).json({
         success: false,
@@ -184,7 +180,7 @@ export const requireAdmin = async (
     // For this demo, we'll check if the user has a specific email domain or role
     const db = new DatabaseService();
     await db.initialize();
-    
+
     const user = await db.findUserById(req.user.id);
     if (!user) {
       res.status(401).json({
@@ -220,18 +216,14 @@ export const requireAdmin = async (
 /**
  * Middleware to validate API key for webhook endpoints
  */
-export const validateApiKey = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
+export const validateApiKey = (req: Request, res: Response, next: NextFunction): void => {
   try {
     const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
-    
+
     // In production, you would validate against stored API keys
     // For demo purposes, we'll use a simple check
     const validApiKey = process.env.WEBHOOK_API_KEY || 'nika-webhook-secret-key';
-    
+
     if (!apiKey || apiKey !== validApiKey) {
       res.status(401).json({
         success: false,
@@ -257,25 +249,19 @@ export const validateApiKey = (
  */
 export const generateTestToken = (userId: string, email: string): string => {
   const secret = config.jwt.secret || 'fallback-secret-for-testing';
-  return jwt.sign(
-    { userId, email },
-    secret,
-    { expiresIn: config.jwt.expiresIn } as jwt.SignOptions
-  );
+  return jwt.sign({ userId, email }, secret, {
+    expiresIn: config.jwt.expiresIn,
+  } as jwt.SignOptions);
 };
 
 /**
  * Middleware to extract user ID from various sources
  */
-export const extractUserId = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
+export const extractUserId = (req: Request, res: Response, next: NextFunction): void => {
   try {
     // Try to get userId from params, body, or query
     let userId = req.params.userId || req.body.userId || req.query.userId;
-    
+
     // If no userId provided and user is authenticated, use their ID
     if (!userId && req.user) {
       userId = req.user.id;
@@ -306,7 +292,7 @@ export const rateLimitByUser = (maxRequests: number = 100, windowMs: number = 15
     try {
       const userId: string = req.user?.id || req.ip || 'anonymous'; // Ensure userId is always a string
       const now = Date.now();
-      
+
       // Clean up expired entries
       for (const [key, data] of userRateLimits.entries()) {
         if (now > data.resetTime) {

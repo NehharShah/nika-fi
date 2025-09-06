@@ -10,17 +10,18 @@ import { PaginationParams, SortParams, ValidationError } from '../types';
  */
 export class ReferralCodeGenerator {
   private static readonly CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  
+
   /**
    * Generate a unique referral code
    * Format: NIKA + 4 random characters (e.g., NIKA1A2B)
    */
   public static generate(): string {
     const prefix = businessRules.referralCodePrefix;
-    const randomPart = Array.from({ length: businessRules.referralCodeLength - prefix.length }, () =>
-      this.CHARACTERS.charAt(Math.floor(Math.random() * this.CHARACTERS.length))
+    const randomPart = Array.from(
+      { length: businessRules.referralCodeLength - prefix.length },
+      () => this.CHARACTERS.charAt(Math.floor(Math.random() * this.CHARACTERS.length))
     ).join('');
-    
+
     return prefix + randomPart;
   }
 
@@ -31,7 +32,7 @@ export class ReferralCodeGenerator {
     if (!code || typeof code !== 'string') return false;
     if (code.length !== businessRules.referralCodeLength) return false;
     if (!code.startsWith(businessRules.referralCodePrefix)) return false;
-    
+
     const pattern = new RegExp(`^${businessRules.referralCodePrefix}[A-Z0-9]+$`);
     return pattern.test(code);
   }
@@ -70,27 +71,27 @@ export class PasswordUtils {
    */
   public static validate(password: string): { isValid: boolean; errors: string[] } {
     const errors: string[] = [];
-    
+
     if (password.length < 8) {
       errors.push('Password must be at least 8 characters long');
     }
-    
+
     if (password.length > 128) {
       errors.push('Password must be less than 128 characters');
     }
-    
+
     if (!/[A-Z]/.test(password)) {
       errors.push('Password must contain at least one uppercase letter');
     }
-    
+
     if (!/[a-z]/.test(password)) {
       errors.push('Password must contain at least one lowercase letter');
     }
-    
+
     if (!/\d/.test(password)) {
       errors.push('Password must contain at least one number');
     }
-    
+
     return {
       isValid: errors.length === 0,
       errors,
@@ -142,7 +143,10 @@ export class DecimalUtils {
       }
       return decimal;
     } catch (error) {
-      const validationError = ErrorUtils.createApiError('INVALID_DECIMAL', `Invalid decimal value for ${fieldName || 'field'}: ${value}`);
+      const validationError = ErrorUtils.createApiError(
+        'INVALID_DECIMAL',
+        `Invalid decimal value for ${fieldName || 'field'}: ${value}`
+      );
       (validationError as any).field = fieldName || 'value';
       (validationError as any).value = value;
       throw validationError;
@@ -152,7 +156,10 @@ export class DecimalUtils {
   /**
    * Round decimal to specified precision for financial calculations
    */
-  public static round(value: Decimal, precision: number = businessRules.feeCalculationRounding): Decimal {
+  public static round(
+    value: Decimal,
+    precision: number = businessRules.feeCalculationRounding
+  ): Decimal {
     return value.toDecimalPlaces(precision, Decimal.ROUND_HALF_UP);
   }
 
@@ -178,9 +185,7 @@ export class DecimalUtils {
    * Check if value is within acceptable range for financial calculations
    */
   public static isValidFinancialAmount(value: Decimal): boolean {
-    return value.isFinite() && 
-           value.gte(0) && 
-           value.lte(new Decimal('1e12')); // 1 trillion max
+    return value.isFinite() && value.gte(0) && value.lte(new Decimal('1e12')); // 1 trillion max
   }
 }
 
@@ -192,7 +197,7 @@ export class PaginationUtils {
    * Calculate pagination parameters
    */
   public static calculatePagination(
-    page: number = 1, 
+    page: number = 1,
     limit: number = 20,
     maxLimit: number = 100
   ): PaginationParams {
@@ -223,7 +228,7 @@ export class PaginationUtils {
     hasPreviousPage: boolean;
   } {
     const totalPages = Math.ceil(totalItems / limit);
-    
+
     return {
       page,
       limit,
@@ -252,9 +257,7 @@ export class ValidationUtils {
    */
   public static isValidUsername(username: string): boolean {
     const usernameRegex = /^[a-zA-Z0-9_-]+$/;
-    return usernameRegex.test(username) && 
-           username.length >= 3 && 
-           username.length <= 30;
+    return usernameRegex.test(username) && username.length >= 3 && username.length <= 30;
   }
 
   /**
@@ -279,13 +282,13 @@ export class ValidationUtils {
    * Validate sort parameters
    */
   public static validateSortParams(
-    field: string, 
+    field: string,
     direction: string,
     allowedFields: string[]
   ): SortParams | null {
     if (!allowedFields.includes(field)) return null;
     if (!['asc', 'desc'].includes(direction.toLowerCase())) return null;
-    
+
     return {
       field,
       direction: direction.toLowerCase() as 'asc' | 'desc',
@@ -344,7 +347,7 @@ export class PerformanceUtils {
   public static endTimer(label: string): number {
     const start = this.timers.get(label);
     if (!start) return 0;
-    
+
     const duration = Date.now() - start;
     this.timers.delete(label);
     return duration;
@@ -387,12 +390,12 @@ export class CacheUtils {
   public static get<T>(key: string): T | null {
     const cached = this.cache.get(key);
     if (!cached) return null;
-    
+
     if (Date.now() > cached.expires) {
       this.cache.delete(key);
       return null;
     }
-    
+
     return cached.value;
   }
 

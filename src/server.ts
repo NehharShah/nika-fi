@@ -23,7 +23,7 @@ try {
 
 /**
  * Nika Referral System Server
- * 
+ *
  * Express.js server implementing a commission-based referral system
  * with sophisticated business logic for fee calculation and multi-level
  * commission distribution.
@@ -44,25 +44,29 @@ class Server {
    */
   private setupMiddleware(): void {
     // Security middleware
-    this.app.use(helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'"],
-          imgSrc: ["'self'", "data:", "https:"],
+    this.app.use(
+      helmet({
+        contentSecurityPolicy: {
+          directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", 'data:', 'https:'],
+          },
         },
-      },
-      crossOriginEmbedderPolicy: false,
-    }));
+        crossOriginEmbedderPolicy: false,
+      })
+    );
 
     // CORS configuration
-    this.app.use(cors({
-      origin: apiConfig.cors.origin,
-      credentials: apiConfig.cors.credentials,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
-    }));
+    this.app.use(
+      cors({
+        origin: apiConfig.cors.origin,
+        credentials: apiConfig.cors.credentials,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
+      })
+    );
 
     // Logging middleware
     if (config.nodeEnv !== 'test') {
@@ -89,9 +93,10 @@ class Server {
 
     // Request ID middleware for tracking
     this.app.use((req: Request, res: Response, next: NextFunction) => {
-      const requestId = req.headers['x-request-id'] || 
-                       `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+      const requestId =
+        req.headers['x-request-id'] ||
+        `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
       req.headers['x-request-id'] = requestId as string;
       res.setHeader('X-Request-ID', requestId);
       next();
@@ -256,7 +261,7 @@ class Server {
     // Handle uncaught exceptions
     process.on('uncaughtException', (error: Error) => {
       console.error('Uncaught Exception:', error);
-      
+
       // Graceful shutdown
       this.gracefulShutdown('UNCAUGHT_EXCEPTION');
     });
@@ -264,7 +269,7 @@ class Server {
     // Handle unhandled promise rejections
     process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
       console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-      
+
       // Graceful shutdown
       this.gracefulShutdown('UNHANDLED_REJECTION');
     });
@@ -287,12 +292,12 @@ class Server {
    */
   private gracefulShutdown(signal: string): void {
     console.log(`Graceful shutdown initiated by ${signal}`);
-    
+
     // Close server
     if (this.server) {
       this.server.close(() => {
         console.log('HTTP server closed');
-        
+
         // Exit process
         process.exit(signal === 'UNCAUGHT_EXCEPTION' || signal === 'UNHANDLED_REJECTION' ? 1 : 0);
       });
@@ -314,7 +319,7 @@ class Server {
    */
   public start(): void {
     const port = config.port;
-    
+
     this.server = this.app.listen(port, () => {
       console.log(`
 ╔══════════════════════════════════════════════╗

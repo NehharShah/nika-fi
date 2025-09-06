@@ -23,7 +23,7 @@ export interface User {
 
 export interface CustomCommissionStructure {
   level1Rate?: number; // Direct referral commission rate
-  level2Rate?: number; // Second level commission rate  
+  level2Rate?: number; // Second level commission rate
   level3Rate?: number; // Third level commission rate
   type: 'KOL_50' | 'KOL_CUSTOM' | 'STANDARD';
   description?: string;
@@ -113,21 +113,21 @@ export enum CommissionStatus {
   UNCLAIMED = 'UNCLAIMED',
   CLAIMED = 'CLAIMED',
   PROCESSING = 'PROCESSING',
-  FAILED = 'FAILED'
+  FAILED = 'FAILED',
 }
 
 export enum TradeStatus {
   PENDING = 'PENDING',
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED'
+  CANCELLED = 'CANCELLED',
 }
 
 export enum ClaimStatus {
   PENDING = 'PENDING',
   PROCESSING = 'PROCESSING',
   COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED'
+  FAILED = 'FAILED',
 }
 
 // Request/Response Types
@@ -280,7 +280,19 @@ export type CreateUserData = Pick<User, 'email' | 'username' | 'referrerId' | 'f
   password: string;
 };
 
-export type UpdateUserData = Partial<Pick<User, 'username' | 'feeTier' | 'customFeeRate' | 'customCommissionStructure' | 'referralCode' | 'totalTradeVolume' | 'totalFeesPaid' | 'lastActiveAt'>>;
+export type UpdateUserData = Partial<
+  Pick<
+    User,
+    | 'username'
+    | 'feeTier'
+    | 'customFeeRate'
+    | 'customCommissionStructure'
+    | 'referralCode'
+    | 'totalTradeVolume'
+    | 'totalFeesPaid'
+    | 'lastActiveAt'
+  >
+>;
 
 export type PaginationParams = {
   page: number;

@@ -1,18 +1,18 @@
 import { Decimal } from 'decimal.js';
-import { 
-  User, 
-  Commission, 
+import {
+  User,
+  Commission,
   Trade,
-  FeeCalculationResult, 
+  FeeCalculationResult,
   CommissionDistribution,
   CustomCommissionStructure,
-  FeeTier
+  FeeTier,
 } from '../types';
 import { referralConfig, feeTierDefinitions, businessRules } from '../config';
 
 /**
  * Commission Calculator - Core business logic for the referral system
- * 
+ *
  * This class handles all commission calculations including:
  * - Fee tier determination and fee discount application
  * - Multi-level commission distribution (3 levels deep)
@@ -20,10 +20,9 @@ import { referralConfig, feeTierDefinitions, businessRules } from '../config';
  * - Special handling for team members and waived fees
  */
 export class CommissionCalculator {
-  
   /**
    * Calculate the effective fee rate for a user based on their tier and discounts
-   * 
+   *
    * Priority order:
    * 1. Custom fee rate (for special users)
    * 2. Fee tier rate (if better than base + discount)
@@ -64,7 +63,7 @@ export class CommissionCalculator {
     // Determine the best applicable fee tier based on user's volume
     const baseFeeRate = new Decimal(referralConfig.baseFeeRate);
     const applicableTiers = availableFeeTiers
-      .filter(tier => tier.isActive)
+      .filter((tier) => tier.isActive)
       .sort((a, b) => b.priority - a.priority); // Higher priority first
 
     let bestTier: FeeTier | null = null;
@@ -77,12 +76,12 @@ export class CommissionCalculator {
 
     // Calculate base rate with signup discount
     const discountedBaseRate = baseFeeRate.mul(new Decimal(1).sub(user.feeDiscountRate));
-    
+
     // Use the better rate between tier rate and discounted base rate
     let effectiveRate: Decimal;
     let tierUsed: string;
     let discountApplied = false;
-    
+
     if (bestTier && bestTier.feeRate.lt(discountedBaseRate)) {
       // Fee tier is better than discounted base rate
       effectiveRate = bestTier.feeRate;
@@ -111,7 +110,7 @@ export class CommissionCalculator {
 
   /**
    * Calculate commission distribution for a trade across the referral network
-   * 
+   *
    * Traverses up to 3 levels of the referral chain and calculates commissions
    * based on standard rates or custom commission structures.
    */
@@ -129,9 +128,13 @@ export class CommissionCalculator {
       return distributions;
     }
 
-    for (let level = 1; level <= Math.min(referralChain.length, businessRules.maxReferralDepth); level++) {
+    for (
+      let level = 1;
+      level <= Math.min(referralChain.length, businessRules.maxReferralDepth);
+      level++
+    ) {
       const referrer = referralChain[level - 1];
-      
+
       // Skip team members as they don't earn commissions
       if (referrer.isTeamMember) {
         continue;
@@ -158,7 +161,7 @@ export class CommissionCalculator {
 
   /**
    * Get the commission rate for a specific referrer at a given level
-   * 
+   *
    * Considers custom commission structures for KOLs and special users
    */
   private static getCommissionRate(referrer: User, level: number): Decimal {
@@ -184,7 +187,7 @@ export class CommissionCalculator {
    * Get commission rate from custom commission structure
    */
   private static getCustomCommissionRate(
-    customStructure: CustomCommissionStructure, 
+    customStructure: CustomCommissionStructure,
     level: number
   ): Decimal {
     switch (level) {
@@ -201,12 +204,12 @@ export class CommissionCalculator {
 
   /**
    * Validate a referral chain to prevent circular references
-   * 
+   *
    * Ensures that a user cannot be referred by someone in their own referral chain
    */
   public static validateReferralChain(userId: string, referralChain: User[]): boolean {
     // Check if user is trying to refer themselves
-    if (referralChain.some(user => user.id === userId)) {
+    if (referralChain.some((user) => user.id === userId)) {
       return false;
     }
 
@@ -229,7 +232,7 @@ export class CommissionCalculator {
 
   /**
    * Calculate total potential earnings for a user's referral network
-   * 
+   *
    * This is used for analytics and network performance metrics
    */
   public static calculateNetworkValue(
@@ -251,7 +254,7 @@ export class CommissionCalculator {
       new Decimal(0)
     );
 
-    const averageCommissionRate = totalVolume.gt(0) 
+    const averageCommissionRate = totalVolume.gt(0)
       ? totalCommissions.div(totalVolume)
       : new Decimal(0);
 
@@ -265,7 +268,7 @@ export class CommissionCalculator {
 
   /**
    * Calculate the optimal fee tier for a user based on their trading volume
-   * 
+   *
    * Used for automatically upgrading users to better fee tiers
    */
   public static calculateOptimalFeeTier(
@@ -273,7 +276,7 @@ export class CommissionCalculator {
     availableFeeTiers: FeeTier[]
   ): FeeTier {
     const activeTiers = availableFeeTiers
-      .filter(tier => tier.isActive)
+      .filter((tier) => tier.isActive)
       .sort((a, b) => b.priority - a.priority); // Higher priority first
 
     for (const tier of activeTiers) {
@@ -283,12 +286,12 @@ export class CommissionCalculator {
     }
 
     // Return base tier if no other tier qualifies
-    return activeTiers.find(tier => tier.name === 'BASE') || activeTiers[0];
+    return activeTiers.find((tier) => tier.name === 'BASE') || activeTiers[0];
   }
 
   /**
    * Calculate commission earnings breakdown by time period
-   * 
+   *
    * Used for analytics dashboards and earnings reports
    */
   public static calculateEarningsBreakdown(
@@ -306,7 +309,7 @@ export class CommissionCalculator {
     // Filter commissions by date range
     let filteredCommissions = commissions;
     if (startDate || endDate) {
-      filteredCommissions = commissions.filter(commission => {
+      filteredCommissions = commissions.filter((commission) => {
         const commissionDate = commission.createdAt;
         if (startDate && commissionDate < startDate) return false;
         if (endDate && commissionDate > endDate) return false;
@@ -320,7 +323,7 @@ export class CommissionCalculator {
     );
 
     const claimedEarnings = filteredCommissions
-      .filter(commission => commission.status === 'CLAIMED')
+      .filter((commission) => commission.status === 'CLAIMED')
       .reduce((sum, commission) => sum.add(commission.amount), new Decimal(0));
 
     const unclaimedEarnings = totalEarnings.sub(claimedEarnings);
@@ -329,24 +332,26 @@ export class CommissionCalculator {
     const earningsByLevel: Record<number, Decimal> = {};
     for (let level = 1; level <= 3; level++) {
       earningsByLevel[level] = filteredCommissions
-        .filter(commission => commission.commissionLevel === level)
+        .filter((commission) => commission.commissionLevel === level)
         .reduce((sum, commission) => sum.add(commission.amount), new Decimal(0));
     }
 
     // Breakdown by token
     const earningsByToken: Record<string, Decimal> = {};
-    filteredCommissions.forEach(commission => {
+    filteredCommissions.forEach((commission) => {
       if (!earningsByToken[commission.tokenType]) {
         earningsByToken[commission.tokenType] = new Decimal(0);
       }
-      earningsByToken[commission.tokenType] = earningsByToken[commission.tokenType].add(commission.amount);
+      earningsByToken[commission.tokenType] = earningsByToken[commission.tokenType].add(
+        commission.amount
+      );
     });
 
     // Breakdown by time period (daily)
     const earningsByPeriod: { date: string; amount: Decimal }[] = [];
     const dailyEarnings = new Map<string, Decimal>();
 
-    filteredCommissions.forEach(commission => {
+    filteredCommissions.forEach((commission) => {
       const dateKey = commission.createdAt.toISOString().split('T')[0];
       const current = dailyEarnings.get(dateKey) || new Decimal(0);
       dailyEarnings.set(dateKey, current.add(commission.amount));

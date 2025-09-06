@@ -1,14 +1,14 @@
 import { Decimal } from 'decimal.js';
 import { DatabaseService } from './database';
 import { CommissionCalculator } from '../utils/commissionCalculator';
-import { 
-  ReferralCodeGenerator, 
-  PasswordUtils, 
-  TokenUtils, 
+import {
+  ReferralCodeGenerator,
+  PasswordUtils,
+  TokenUtils,
   ErrorUtils,
   ValidationUtils,
   DecimalUtils,
-  PaginationUtils
+  PaginationUtils,
 } from '../utils/helpers';
 import {
   User,
@@ -30,13 +30,13 @@ import {
   CreateUserData,
   CommissionStatus,
   TradeStatus,
-  ClaimStatus
+  ClaimStatus,
 } from '../types';
 import { referralConfig, businessRules, errorMessages } from '../config';
 
 /**
  * Referral Service - Core business logic for the referral system
- * 
+ *
  * This service orchestrates all referral-related operations including:
  * - User registration with referral codes
  * - Commission calculation and distribution
@@ -69,7 +69,9 @@ export class ReferralService {
   /**
    * Generate a unique referral code for a user
    */
-  async generateReferralCode(request: GenerateReferralCodeRequest): Promise<GenerateReferralCodeResponse> {
+  async generateReferralCode(
+    request: GenerateReferralCodeRequest
+  ): Promise<GenerateReferralCodeResponse> {
     const { userId } = request;
 
     // Check if user exists
@@ -92,29 +94,34 @@ export class ReferralService {
 
     while (attempts < maxAttempts) {
       const referralCode = ReferralCodeGenerator.generate();
-      
+
       // Check if code already exists
       const existingUser = await this.db.findUserByReferralCode(referralCode);
       if (!existingUser) {
         // Update user with new referral code
         await this.db.updateUser(userId, { referralCode });
-        
+
         return {
           referralCode,
           referralUrl: ReferralCodeGenerator.generateUrl(referralCode),
         };
       }
-      
+
       attempts++;
     }
 
-    throw ErrorUtils.createApiError('REFERRAL_CODE_GENERATION_FAILED', 'Failed to generate unique referral code');
+    throw ErrorUtils.createApiError(
+      'REFERRAL_CODE_GENERATION_FAILED',
+      'Failed to generate unique referral code'
+    );
   }
 
   /**
    * Register a new user with optional referral code
    */
-  async registerWithReferral(request: RegisterWithReferralRequest): Promise<RegisterWithReferralResponse> {
+  async registerWithReferral(
+    request: RegisterWithReferralRequest
+  ): Promise<RegisterWithReferralResponse> {
     const { email, username, password, referralCode } = request;
 
     // Validate input
@@ -142,19 +149,28 @@ export class ReferralService {
 
       referrer = await this.db.findUserByReferralCode(referralCode);
       if (!referrer) {
-        throw ErrorUtils.createApiError('REFERRAL_CODE_NOT_FOUND', errorMessages.REFERRAL_CODE_NOT_FOUND);
+        throw ErrorUtils.createApiError(
+          'REFERRAL_CODE_NOT_FOUND',
+          errorMessages.REFERRAL_CODE_NOT_FOUND
+        );
       }
 
       // Prevent self-referral by email if account already exists
       const existing = await this.db.findUserByEmail(email);
       if (existing && existing.id === referrer.id) {
-        throw ErrorUtils.createApiError('SELF_REFERRAL_NOT_ALLOWED', errorMessages.SELF_REFERRAL_NOT_ALLOWED);
+        throw ErrorUtils.createApiError(
+          'SELF_REFERRAL_NOT_ALLOWED',
+          errorMessages.SELF_REFERRAL_NOT_ALLOWED
+        );
       }
 
       // Validate referral chain depth
       const referralChain = await this.db.getReferralChain(referrer.id);
       if (referralChain.length >= businessRules.maxReferralDepth) {
-        throw ErrorUtils.createApiError('MAX_REFERRAL_DEPTH_EXCEEDED', errorMessages.MAX_REFERRAL_DEPTH_EXCEEDED);
+        throw ErrorUtils.createApiError(
+          'MAX_REFERRAL_DEPTH_EXCEEDED',
+          errorMessages.MAX_REFERRAL_DEPTH_EXCEEDED
+        );
       }
 
       // Apply fee discount for referred users
@@ -216,10 +232,10 @@ export class ReferralService {
     }
 
     const pagination = PaginationUtils.calculatePagination(page, limit);
-    
+
     // Build the network tree recursively
     const networkNode = await this.buildNetworkNode(user, 1, 3, pagination);
-    
+
     return networkNode;
   }
 
@@ -251,10 +267,15 @@ export class ReferralService {
     // If we haven't reached max level, get children
     if (currentLevel < maxLevel) {
       const { referrals } = await this.db.getUserReferrals(user.id, pagination);
-      
+
       // Build children nodes recursively
       for (const referral of referrals) {
-        const childNode = await this.buildNetworkNode(referral, currentLevel + 1, maxLevel, pagination);
+        const childNode = await this.buildNetworkNode(
+          referral,
+          currentLevel + 1,
+          maxLevel,
+          pagination
+        );
         node.children.push(childNode);
       }
     }
@@ -265,7 +286,9 @@ export class ReferralService {
   /**
    * Get earnings breakdown for a user
    */
-  async getEarningsBreakdown(request: EarningsBreakdownRequest): Promise<EarningsBreakdownResponse> {
+  async getEarningsBreakdown(
+    request: EarningsBreakdownRequest
+  ): Promise<EarningsBreakdownResponse> {
     const { userId, startDate, endDate, page = 1, limit = 20 } = request;
 
     // Validate user
@@ -289,19 +312,22 @@ export class ReferralService {
     const commissionStats = await this.db.getCommissionStats(userId);
 
     // Group earnings by user
-    const earningsByUserMap = new Map<string, {
-      userId: string;
-      username?: string;
-      email: string;
-      level: number;
-      totalEarnings: Decimal;
-      unclaimedEarnings: Decimal;
-      lastTradeAt?: Date;
-    }>();
+    const earningsByUserMap = new Map<
+      string,
+      {
+        userId: string;
+        username?: string;
+        email: string;
+        level: number;
+        totalEarnings: Decimal;
+        unclaimedEarnings: Decimal;
+        lastTradeAt?: Date;
+      }
+    >();
 
     for (const commission of commissions) {
       const sourceUserId = commission.sourceUserId;
-      
+
       if (!earningsByUserMap.has(sourceUserId)) {
         // This would need the source user data from the commission query
         // For now, we'll create a placeholder
@@ -316,7 +342,7 @@ export class ReferralService {
 
       const userEarnings = earningsByUserMap.get(sourceUserId)!;
       userEarnings.totalEarnings = userEarnings.totalEarnings.add(commission.amount);
-      
+
       if (commission.status === CommissionStatus.UNCLAIMED) {
         userEarnings.unclaimedEarnings = userEarnings.unclaimedEarnings.add(commission.amount);
       }
@@ -349,17 +375,17 @@ export class ReferralService {
    * Process a trade and distribute commissions
    */
   async processTradeWebhook(request: TradeWebhookRequest): Promise<TradeWebhookResponse> {
-    const { 
-      userId, 
-      tradeType, 
-      baseAsset, 
-      quoteAsset, 
-      side, 
-      volume, 
-      price, 
-      chain, 
+    const {
+      userId,
+      tradeType,
+      baseAsset,
+      quoteAsset,
+      side,
+      volume,
+      price,
+      chain,
       network,
-      transactionHash 
+      transactionHash,
     } = request;
 
     // Validate user
@@ -373,7 +399,10 @@ export class ReferralService {
     const tradePrice = DecimalUtils.fromString(price, 'price');
 
     if (tradeVolume.lt(businessRules.minimumTradeVolume)) {
-      throw ErrorUtils.createApiError('MINIMUM_TRADE_VOLUME_NOT_MET', errorMessages.MINIMUM_TRADE_VOLUME_NOT_MET);
+      throw ErrorUtils.createApiError(
+        'MINIMUM_TRADE_VOLUME_NOT_MET',
+        errorMessages.MINIMUM_TRADE_VOLUME_NOT_MET
+      );
     }
 
     // Calculate trade value
@@ -421,7 +450,7 @@ export class ReferralService {
       );
 
       // Create commission records
-      const commissionsData = commissionDistributions.map(distribution => ({
+      const commissionsData = commissionDistributions.map((distribution) => ({
         amount: distribution.amount,
         tokenType: 'USDC', // Default token
         commissionLevel: distribution.level,
@@ -440,7 +469,7 @@ export class ReferralService {
           commissionsData.map((data) => (tx as any).commission.create({ data }))
         );
         createdCommissions = created as any;
-        
+
         // Update commission IDs in distributions
         commissionDistributions.forEach((distribution, index) => {
           distribution.commissionId = createdCommissions[index].id;
@@ -450,7 +479,7 @@ export class ReferralService {
       // Update user's trade volume
       const updatedVolume = user.totalTradeVolume.add(tradeValue);
       const updatedFees = user.totalFeesPaid.add(feeCalculation.netFeeAmount);
-      
+
       await (tx as any).user.update({
         where: { id: userId },
         data: {
@@ -471,7 +500,10 @@ export class ReferralService {
   /**
    * Validate claim request (UI endpoint - no actual processing)
    */
-  async validateClaimRequest(userId: string, tokenType: string = 'USDC'): Promise<{
+  async validateClaimRequest(
+    userId: string,
+    tokenType: string = 'USDC'
+  ): Promise<{
     isValid: boolean;
     claimableAmount: Decimal;
     errors: string[];
@@ -541,14 +573,19 @@ export class ReferralService {
   /**
    * Update user's fee tier based on volume
    */
-  async updateUserFeeTier(userId: string): Promise<{ oldTier: string; newTier: string; updated: boolean }> {
+  async updateUserFeeTier(
+    userId: string
+  ): Promise<{ oldTier: string; newTier: string; updated: boolean }> {
     const user = await this.db.findUserById(userId);
     if (!user) {
       throw ErrorUtils.createApiError('USER_NOT_FOUND', errorMessages.USER_NOT_FOUND);
     }
 
-    const optimalTier = CommissionCalculator.calculateOptimalFeeTier(user.totalTradeVolume, this.feeTiers);
-    
+    const optimalTier = CommissionCalculator.calculateOptimalFeeTier(
+      user.totalTradeVolume,
+      this.feeTiers
+    );
+
     if (optimalTier.name !== user.feeTier) {
       await this.db.updateUser(userId, { feeTier: optimalTier.name });
       return {

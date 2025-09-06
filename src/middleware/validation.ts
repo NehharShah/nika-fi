@@ -5,14 +5,17 @@ import { apiConfig, errorMessages } from '../config';
 
 /**
  * Validation Middleware
- * 
+ *
  * Provides request validation using Joi schemas and custom validators
  */
 
 /**
  * Generic validation middleware factory
  */
-export const validate = (schema: Joi.ObjectSchema, source: 'body' | 'query' | 'params' = 'body') => {
+export const validate = (
+  schema: Joi.ObjectSchema,
+  source: 'body' | 'query' | 'params' = 'body'
+) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     try {
       const data = req[source];
@@ -23,7 +26,7 @@ export const validate = (schema: Joi.ObjectSchema, source: 'body' | 'query' | 'p
       });
 
       if (error) {
-        const errors = error.details.map(detail => ({
+        const errors = error.details.map((detail) => ({
           field: detail.path.join('.'),
           message: detail.message,
           value: detail.context?.value,
@@ -55,15 +58,15 @@ export const validate = (schema: Joi.ObjectSchema, source: 'body' | 'query' | 'p
 /**
  * Pagination validation middleware
  */
-export const validatePagination = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
+export const validatePagination = (req: Request, res: Response, next: NextFunction): void => {
   try {
     const schema = Joi.object({
       page: Joi.number().integer().min(1).default(1),
-      limit: Joi.number().integer().min(1).max(apiConfig.defaultPagination.maxLimit).default(apiConfig.defaultPagination.limit),
+      limit: Joi.number()
+        .integer()
+        .min(1)
+        .max(apiConfig.defaultPagination.maxLimit)
+        .default(apiConfig.defaultPagination.limit),
     });
 
     const { error, value } = schema.validate({
@@ -99,11 +102,7 @@ export const validatePagination = (
 /**
  * Date range validation middleware
  */
-export const validateDateRange = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
+export const validateDateRange = (req: Request, res: Response, next: NextFunction): void => {
   try {
     const { startDate, endDate } = req.query;
 
@@ -195,8 +194,8 @@ export const validateSortParams = (allowedFields: string[]) => {
 
       if (sortBy || sortOrder) {
         const sortParams = ValidationUtils.validateSortParams(
-          sortBy as string || 'createdAt',
-          sortOrder as string || 'desc',
+          (sortBy as string) || 'createdAt',
+          (sortOrder as string) || 'desc',
           allowedFields
         );
 
@@ -234,7 +233,7 @@ export const validateUuid = (paramName: string) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     try {
       const uuid = req.params[paramName];
-      
+
       if (!uuid) {
         res.status(400).json({
           success: false,
@@ -269,11 +268,7 @@ export const validateUuid = (paramName: string) => {
 /**
  * Referral code validation middleware
  */
-export const validateReferralCode = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
+export const validateReferralCode = (req: Request, res: Response, next: NextFunction): void => {
   try {
     const referralCode = req.params.code || req.body.referralCode || req.query.referralCode;
 
@@ -312,7 +307,7 @@ export const validateContentType = (expectedType: string = 'application/json') =
       }
 
       const contentType = req.headers['content-type'];
-      
+
       if (!contentType || !contentType.includes(expectedType)) {
         res.status(415).json({
           success: false,
@@ -337,11 +332,12 @@ export const validateContentType = (expectedType: string = 'application/json') =
 /**
  * Request size validation middleware
  */
-export const validateRequestSize = (maxSizeBytes: number = 1024 * 1024) => { // 1MB default
+export const validateRequestSize = (maxSizeBytes: number = 1024 * 1024) => {
+  // 1MB default
   return (req: Request, res: Response, next: NextFunction): void => {
     try {
       const contentLength = parseInt(req.headers['content-length'] || '0');
-      
+
       if (contentLength > maxSizeBytes) {
         res.status(413).json({
           success: false,
@@ -372,7 +368,9 @@ export const commonSchemas = {
     email: Joi.string().email().max(254).required(),
     username: Joi.string().alphanum().min(3).max(30).optional(),
     password: Joi.string().min(8).max(128).required(),
-    referralCode: Joi.string().pattern(/^NIKA[A-Z0-9]{4}$/).optional(),
+    referralCode: Joi.string()
+      .pattern(/^NIKA[A-Z0-9]{4}$/)
+      .optional(),
   }),
 
   // Trade webhook schema
@@ -382,8 +380,12 @@ export const commonSchemas = {
     baseAsset: Joi.string().min(1).max(10).required(),
     quoteAsset: Joi.string().min(1).max(10).required(),
     side: Joi.string().valid('BUY', 'SELL').required(),
-    volume: Joi.string().pattern(/^\d+(\.\d+)?$/).required(),
-    price: Joi.string().pattern(/^\d+(\.\d+)?$/).required(),
+    volume: Joi.string()
+      .pattern(/^\d+(\.\d+)?$/)
+      .required(),
+    price: Joi.string()
+      .pattern(/^\d+(\.\d+)?$/)
+      .required(),
     chain: Joi.string().valid('EVM', 'SVM').required(),
     network: Joi.string().valid('Arbitrum', 'Ethereum', 'Polygon', 'Solana').required(),
     transactionHash: Joi.string().optional(),
@@ -394,13 +396,19 @@ export const commonSchemas = {
     userId: Joi.string().uuid().required(),
     tokenType: Joi.string().valid('USDC', 'USDT', 'SOL', 'ETH').default('USDC'),
     walletAddress: Joi.string().required(),
-    amount: Joi.string().pattern(/^\d+(\.\d+)?$/).optional(),
+    amount: Joi.string()
+      .pattern(/^\d+(\.\d+)?$/)
+      .optional(),
   }),
 
   // Pagination schema
   pagination: Joi.object({
     page: Joi.number().integer().min(1).default(1),
-    limit: Joi.number().integer().min(1).max(apiConfig.defaultPagination.maxLimit).default(apiConfig.defaultPagination.limit),
+    limit: Joi.number()
+      .integer()
+      .min(1)
+      .max(apiConfig.defaultPagination.maxLimit)
+      .default(apiConfig.defaultPagination.limit),
   }),
 
   // Date range schema
@@ -418,11 +426,7 @@ export const commonSchemas = {
 /**
  * Sanitization middleware
  */
-export const sanitizeInput = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
+export const sanitizeInput = (req: Request, res: Response, next: NextFunction): void => {
   try {
     // Sanitize string fields in body
     if (req.body && typeof req.body === 'object') {

@@ -6,7 +6,7 @@ import Joi from 'joi';
 
 /**
  * Referral Controller - HTTP endpoint handlers for referral system
- * 
+ *
  * This controller handles all referral-related HTTP requests including:
  * - Referral code generation and validation
  * - User registration with referrals
@@ -60,7 +60,7 @@ export class ReferralController {
   };
 
   /**
-   * POST /api/referral/register  
+   * POST /api/referral/register
    * Register a new user with a referral code
    */
   registerWithReferral = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -69,7 +69,10 @@ export class ReferralController {
         email: Joi.string().email().max(254).required(),
         username: Joi.string().alphanum().min(3).max(30).optional(),
         password: Joi.string().min(8).max(128).required(),
-        referralCode: Joi.string().length(8).pattern(/^NIKA[A-Z0-9]{4}$/).optional(),
+        referralCode: Joi.string()
+          .length(8)
+          .pattern(/^NIKA[A-Z0-9]{4}$/)
+          .optional(),
       });
 
       const { error, value } = schema.validate(req.body);
@@ -211,10 +214,7 @@ export class ReferralController {
         return;
       }
 
-      const result = await this.referralService.validateClaimRequest(
-        value.userId,
-        value.tokenType
-      );
+      const result = await this.referralService.validateClaimRequest(value.userId, value.tokenType);
 
       if (!result.isValid) {
         res.status(400).json({
@@ -257,8 +257,12 @@ export class ReferralController {
         baseAsset: Joi.string().required(),
         quoteAsset: Joi.string().required(),
         side: Joi.string().valid('BUY', 'SELL').required(),
-        volume: Joi.string().pattern(/^\d+(\.\d+)?$/).required(), // String to handle large numbers
-        price: Joi.string().pattern(/^\d+(\.\d+)?$/).required(),
+        volume: Joi.string()
+          .pattern(/^\d+(\.\d+)?$/)
+          .required(), // String to handle large numbers
+        price: Joi.string()
+          .pattern(/^\d+(\.\d+)?$/)
+          .required(),
         chain: Joi.string().valid('EVM', 'SVM').required(),
         network: Joi.string().valid('Arbitrum', 'Ethereum', 'Polygon', 'Solana').required(),
         transactionHash: Joi.string().optional(),
@@ -304,7 +308,11 @@ export class ReferralController {
    * GET /api/referral/statistics
    * Get platform-wide referral statistics (admin endpoint)
    */
-  getPlatformStatistics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  getPlatformStatistics = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
     try {
       // This would typically require admin authentication
       // For now, we'll assume the user is authenticated and authorized
@@ -359,7 +367,10 @@ export class ReferralController {
   validateReferralCode = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const schema = Joi.object({
-        code: Joi.string().length(8).pattern(/^NIKA[A-Z0-9]{4}$/).required(),
+        code: Joi.string()
+          .length(8)
+          .pattern(/^NIKA[A-Z0-9]{4}$/)
+          .required(),
       });
 
       const { error, value } = schema.validate({ code: req.params.code });
@@ -444,50 +455,50 @@ export const referralErrorHandler = (
 function getStatusCodeForError(errorCode: string): number {
   const errorStatusMap: Record<string, number> = {
     // 400 Bad Request
-    'VALIDATION_ERROR': 400,
-    'INVALID_EMAIL': 400,
-    'INVALID_USERNAME': 400,
-    'INVALID_PASSWORD': 400,
-    'INVALID_REFERRAL_CODE': 400,
-    'INVALID_DATE_RANGE': 400,
-    'INVALID_PAGINATION_PARAMS': 400,
-    'MINIMUM_TRADE_VOLUME_NOT_MET': 400,
-    'SELF_REFERRAL_NOT_ALLOWED': 400,
-    'CIRCULAR_REFERRAL_DETECTED': 400,
-    'MAX_REFERRAL_DEPTH_EXCEEDED': 400,
-    'ALREADY_REFERRED': 400,
-    'INSUFFICIENT_COMMISSION_BALANCE': 400,
-    'COMMISSION_ALREADY_CLAIMED': 400,
-    'INVALID_CLAIM_REQUEST': 400,
+    VALIDATION_ERROR: 400,
+    INVALID_EMAIL: 400,
+    INVALID_USERNAME: 400,
+    INVALID_PASSWORD: 400,
+    INVALID_REFERRAL_CODE: 400,
+    INVALID_DATE_RANGE: 400,
+    INVALID_PAGINATION_PARAMS: 400,
+    MINIMUM_TRADE_VOLUME_NOT_MET: 400,
+    SELF_REFERRAL_NOT_ALLOWED: 400,
+    CIRCULAR_REFERRAL_DETECTED: 400,
+    MAX_REFERRAL_DEPTH_EXCEEDED: 400,
+    ALREADY_REFERRED: 400,
+    INSUFFICIENT_COMMISSION_BALANCE: 400,
+    COMMISSION_ALREADY_CLAIMED: 400,
+    INVALID_CLAIM_REQUEST: 400,
 
     // 401 Unauthorized
-    'INVALID_CREDENTIALS': 401,
-    'TOKEN_EXPIRED': 401,
-    'TOKEN_INVALID': 401,
-    'UNAUTHORIZED': 401,
+    INVALID_CREDENTIALS: 401,
+    TOKEN_EXPIRED: 401,
+    TOKEN_INVALID: 401,
+    UNAUTHORIZED: 401,
 
     // 404 Not Found
-    'USER_NOT_FOUND': 404,
-    'REFERRAL_CODE_NOT_FOUND': 404,
-    'COMMISSION_NOT_FOUND': 404,
-    'TRADE_NOT_FOUND': 404,
+    USER_NOT_FOUND: 404,
+    REFERRAL_CODE_NOT_FOUND: 404,
+    COMMISSION_NOT_FOUND: 404,
+    TRADE_NOT_FOUND: 404,
 
     // 409 Conflict
-    'EMAIL_EXISTS': 409,
-    'EMAIL_ALREADY_EXISTS': 409,
-    'USERNAME_EXISTS': 409,
-    'USERNAME_ALREADY_EXISTS': 409,
-    'REFERRAL_CODE_EXISTS': 409,
-    'TRADE_ALREADY_PROCESSED': 409,
+    EMAIL_EXISTS: 409,
+    EMAIL_ALREADY_EXISTS: 409,
+    USERNAME_EXISTS: 409,
+    USERNAME_ALREADY_EXISTS: 409,
+    REFERRAL_CODE_EXISTS: 409,
+    TRADE_ALREADY_PROCESSED: 409,
 
     // 429 Too Many Requests
-    'RATE_LIMIT_EXCEEDED': 429,
+    RATE_LIMIT_EXCEEDED: 429,
 
     // 500 Internal Server Error
-    'INTERNAL_SERVER_ERROR': 500,
-    'DATABASE_ERROR': 500,
-    'EXTERNAL_SERVICE_ERROR': 500,
-    'REFERRAL_CODE_GENERATION_FAILED': 500,
+    INTERNAL_SERVER_ERROR: 500,
+    DATABASE_ERROR: 500,
+    EXTERNAL_SERVICE_ERROR: 500,
+    REFERRAL_CODE_GENERATION_FAILED: 500,
   };
 
   return errorStatusMap[errorCode] || 500;
